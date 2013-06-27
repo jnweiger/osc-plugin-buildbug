@@ -6,8 +6,11 @@
 #
 
 import traceback
+from osc import cmdln
+from optparse import SUPPRESS_HELP
+
 global OSC_BUILDBUG_PLUGIN_VERSION, OSC_BUILDBUG_PLUGIN_NAME
-OSC_BUILDBUG_PLUGIN_VERSION = '0.01'
+OSC_BUILDBUG_PLUGIN_VERSION = '0.02'
 OSC_BUILDBUG_PLUGIN_NAME = traceback.extract_stack()[-1][0] + ' V' + OSC_BUILDBUG_PLUGIN_VERSION
 
 @cmdln.alias('bbuild')
@@ -111,6 +114,12 @@ def do_buildbug(self, subcmd, opts, *args):
         import tempfile
 
         opts.buildbug = True    # not used, maybe osc.build.main() wants to know we are here, someday.
+        if opts.define is None:
+          opts.define = ('_buildshell /bin/bash')
+        else:
+          opts.define.append('_buildshell /bin/bash')
+
+        print [ opts.define ]
 
         print OSC_BUILDBUG_PLUGIN_NAME
         (wrap_fd, wrap_name) = tempfile.mkstemp(suffix='-buildbug-wrap.sh')
@@ -136,7 +145,16 @@ bash -x $build_cmd $@
         ## (this can be seen with .oscrc:su-wrapper = strace)
         wrap.close()    # put our own rm at the end of the script.
 
-        config['build-cmd'] = wrap_name
+        ## Plan:
+        # We do it in two steps:
+        # Copy the /usr/bin/build shellscript to a temporary name
+        #  with the following modifications:
+        #  " --define '_buildshell %s'" wrapname
+        # we cannot use a simple opts.define = [ '_buildshell %s' % wrapname ]
+        # because this is no longer reachable once we are inside the buildroot,
+        # and we cannot predict the buildroot from here...
+
+        # config['build-cmd'] = wrap_name
 
         # jump 
         r = self.do_build(subcmd, opts, *args)
